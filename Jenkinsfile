@@ -16,14 +16,17 @@ pipeline {
             }
         }
 
-        stage('Push to Docker Hub') {
-            steps {
-                withDockerRegistry([ credentialsId: 'docker_hub_credentials', url: '' ]) {
-                    script {
-                        docker.image('varshith57/movie-recommendation-system').push('latest')
-                    }
-                }
+       stage('Push to Docker Hub') {
+    steps {
+        // Switch Docker context to one Jenkins can access
+        bat 'docker context use default'
+
+        withDockerRegistry([ credentialsId: 'docker_hub_credentials', url: '' ]) {
+            script {
+                docker.image('varshith57/movie-recommendation-system').push('latest')
             }
         }
+    }
+}
     }
 }
