@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "varshith57/movie-recommendation-system"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+    }
+
     stages {
         stage('Clone Repo') {
             steps {
@@ -11,22 +16,36 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build('varshith57/movie-recommendation-system')
+                    dockerImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
                 }
             }
         }
 
-       stage('Push to Docker Hub') {
-    steps {
-        // Switch Docker context to one Jenkins can access
-        bat 'docker context use default'
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    bat 'docker context use default'
+                    withDockerRegistry([credentialsId: 'docker_hub_credentials', url: '']) {
+                        dockerImage.push()
+                    }
+                }
+            }
+        }
 
-        withDockerRegistry([ credentialsId: 'docker_hub_credentials', url: '' ]) {
-            script {
-                docker.image('varshith57/movie-recommendation-system').push('latest')
+        stage('Deploy Container') {
+            steps {
+                script {
+                    bat 'docker stop movie-recommendation || exit 0'
+                    bat 'docker rm movie-recommendation || exit 0'
+                    bat "docker run -d -p 5000:5000 --name movie-recommendation ${IMAGE_NAME}:${IMAGE_TAG}"
+                }
             }
         }
     }
-}
+
+    post {
+        always {
+            cleanWs()
+        }
     }
 }
