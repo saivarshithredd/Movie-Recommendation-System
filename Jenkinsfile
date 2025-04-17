@@ -2,8 +2,9 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "varshith57/movie-recommendation-system"
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        IMAGE_NAME = 'varshith57/movie-recommendation-system'
+        IMAGE_TAG = 'latest'
+        CONTAINER_NAME = 'movie-recommendation'
     }
 
     stages {
@@ -16,36 +17,39 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    dockerImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                    docker.build("${IMAGE_NAME}")
                 }
             }
         }
 
         stage('Push to Docker Hub') {
             steps {
-                script {
-                    bat 'docker context use default'
-                    withDockerRegistry([credentialsId: 'docker_hub_credentials', url: '']) {
-                        dockerImage.push()
+                bat 'docker context use default'
+                withDockerRegistry([credentialsId: 'docker_hub_credentials', url: '']) {
+                    script {
+                        docker.image("${IMAGE_NAME}").push("${IMAGE_TAG}")
                     }
                 }
             }
         }
 
-        stage('Deploy Container') {
+        stage('Cleanup Existing Container') {
             steps {
-                script {
-                    bat 'docker stop movie-recommendation || exit 0'
-                    bat 'docker rm movie-recommendation || exit 0'
-                    bat "docker run -d -p 5000:5000 --name movie-recommendation ${IMAGE_NAME}:${IMAGE_TAG}"
-                }
+                bat """
+                    docker ps -a -q --filter "name=${CONTAINER_NAME}" > container_id.txt
+                    for /f %%i in (container_id.txt) do (
+                        docker stop %%i
+                        docker rm %%i
+                    )
+                    del container_id.txt
+                """
             }
         }
-    }
 
-    post {
-        always {
-            cleanWs()
+        stage('Run New Container') {
+            steps {
+                bat "docker run -d -p 5000:5000 --name ${CONTAINER_NAME} ${IMAGE_NAME}:${IMAGE_TAG}"
+            }
         }
     }
 }
